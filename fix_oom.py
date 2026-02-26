@@ -84,7 +84,7 @@ class PackedTokenizedDataset(IterableDataset):
             buffer.extend(tokens)
             while len(buffer) >= self.max_seq_len + 1:
                 chunk = buffer[:self.max_seq_len + 1]
-                buffer = buffer[self.max_seq_len + 1:]
+                buffer = buffer[self.max_seq_len:]
                 yield torch.tensor(chunk[:-1], dtype=torch.long), torch.tensor(chunk[1:], dtype=torch.long)
 
 train_dataloader = DataLoader(PackedTokenizedDataset(dataset, tokenizer, config.max_seq_len), batch_size=train_config.batch_size)
@@ -160,6 +160,15 @@ class ModernLLM(nn.Module):
         self.norm, self.output = RMSNorm(args.dim, eps=args.norm_eps), nn.Linear(args.dim, args.vocab_size, bias=False)
         self.tok_embeddings.weight = self.output.weight
         self.register_buffer("freqs_cis", precompute_freqs_cis(args.dim // args.n_heads, args.max_seq_len * 2))
+        self.apply(self._init_weights)
+
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            if module.bias is not None:
+                torch.nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
     def forward(self, tokens, use_cache=False, kv_caches=None):
         h = self.tok_embeddings(tokens)
@@ -186,12 +195,20 @@ def generate(model, tokenizer, prompt, max_new_tokens=100, temperature=0.8, top_
     res = tokens.squeeze().tolist()
     for _ in range(max_new_tokens):
         p = torch.softmax(curr_logit / (temperature + 1e-10), -1)
-        # simplistic top-p sampling
         sorted_p, sorted_i = torch.sort(p, descending=True)
         cp = torch.cumsum(sorted_p, -1)
-        idx = sorted_i[cp < top_p]
-        if len(idx) == 0: idx = sorted_i[:1]
-        nt = idx[torch.multinomial(torch.ones(len(idx)), 1)].item()
+        
+        # Remove tokens with cumulative probability above the threshold
+        sorted_indices_to_remove = cp > top_p
+        # Shift the indices to the right to keep also the first token above the threshold
+        sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
+        sorted_indices_to_remove[..., 0] = 0
+        
+        indices_to_remove = sorted_indices_to_remove.scatter(1, sorted_i, sorted_indices_to_remove)
+        p[indices_to_remove] = 0.0
+        p = p / p.sum(dim=-1, keepdim=True)
+        
+        nt = torch.multinomial(p, 1).item()
         res.append(nt)
         if nt == tokenizer.eos_token_id: break
         logits, kv_caches = model(torch.tensor([[nt]], device=device), use_cache=True, kv_caches=kv_caches)
@@ -209,10 +226,16 @@ model.train()
 print(f"Starting training (Batch={train_config.batch_size})...")
 
 for step in range(train_config.max_steps):
-    X, Y = next(train_iter); X, Y = X.to(device), Y.to(device)
+    try:
+        X, Y = next(train_iter)
+    except StopIteration:
+        train_iter = iter(train_dataloader)
+        X, Y = next(train_iter)
+        
+    X, Y = X.to(device), Y.to(device)
     optimizer.zero_grad(set_to_none=True)
     
-    with torch.amp.autocast('cuda' if device.device.type == 'cuda' else 'cpu', dtype=torch.float16):
+    with torch.amp.autocast('cuda' if device.type == 'cuda' else 'cpu', dtype=torch.float16):
         loss = F.cross_entropy(model(X).view(-1, config.vocab_size), Y.view(-1))
     
     scaler.scale(loss).backward() # This step uses a lot of memory for grad calculation
