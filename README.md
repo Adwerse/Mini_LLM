@@ -25,7 +25,7 @@ This project implements some of the best modern architectural solutions:
 
 ## 📂 Project Structure
 
-The project has been carefully reorganized for easy navigation (just like real developers do):
+The project has been carefully reorganized for easy navigation:
 
 ```text
 ├── archive/                  # 🗄️ Old project experiments (0.12 - 0.31)
