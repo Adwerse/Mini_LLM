@@ -25,6 +25,7 @@ class SimpleLLMInference:
         device: str | torch.device | None = None,
         strict: bool = True,
     ) -> None:
+        self.checkpoint_path = str(checkpoint_path) if checkpoint_path is not None else None
         self.device = torch.device(
             device if device is not None else ("cuda" if torch.cuda.is_available() else "cpu")
         )
@@ -34,6 +35,7 @@ class SimpleLLMInference:
             if checkpoint_path is not None
             else None
         )
+        self.checkpoint_loaded = checkpoint is not None
 
         if checkpoint is not None and checkpoint.tokenizer_name and tokenizer_name == "gpt2":
             tokenizer_name = checkpoint.tokenizer_name
