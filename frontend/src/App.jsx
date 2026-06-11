@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { API_BASE_URL, generateText, getHealth, getModelInfo } from "./api.js";
 
 const DEFAULT_PROMPT = "Once upon a time";
