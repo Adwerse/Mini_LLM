@@ -66,6 +66,65 @@ Open the final cell to run the inference console and chat with the model.
 
 ---
 
+## Run the API
+
+Start the FastAPI backend with a checkpoint:
+
+```bash
+python scripts/serve.py --checkpoint SimpleLLM_V032_Final.pt --device cpu
+```
+
+The API will be available at:
+
+```text
+http://127.0.0.1:8000
+```
+
+---
+
+## Run the frontend
+
+Install and start the Vite app:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The frontend runs at:
+
+```text
+http://localhost:5173
+```
+
+By default, the frontend calls:
+
+```text
+http://127.0.0.1:8000
+```
+
+To point it at a different backend URL:
+
+```bash
+VITE_API_BASE_URL=http://127.0.0.1:8000 npm run dev
+```
+
+On Windows PowerShell:
+
+```powershell
+$env:VITE_API_BASE_URL="http://127.0.0.1:8000"
+npm run dev
+```
+
+Expected flow:
+
+```text
+Frontend prompt -> FastAPI /generate -> SimpleLLMInference -> PyTorch checkpoint -> generated text
+```
+
+---
+
 ## Project Structure
 
 ```

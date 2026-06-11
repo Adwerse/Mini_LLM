@@ -8,6 +8,7 @@ from typing import Any
 
 import torch
 from fastapi import FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 
 from simplellm.config import ModelConfig
 from simplellm.inference import SimpleLLMInference
@@ -22,6 +23,17 @@ from .schemas import (
 
 MODEL_TYPE = "Mini Transformer Language Model"
 MAX_NEW_TOKENS_LIMIT = 256
+DEFAULT_CORS_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+
+
+def _cors_origins_from_env() -> list[str]:
+    raw = os.getenv("SIMPLELLM_CORS_ORIGINS")
+    if not raw:
+        return DEFAULT_CORS_ORIGINS
+    return [origin.strip() for origin in raw.split(",") if origin.strip()]
 
 
 class ApiState:
@@ -176,6 +188,7 @@ def create_app(
     device: str | torch.device | None = None,
     strict: bool = True,
     inference_service: Any | None = None,
+    cors_origins: list[str] | None = None,
 ) -> FastAPI:
     api_state = ApiState(
         checkpoint_path=checkpoint_path,
@@ -191,6 +204,13 @@ def create_app(
         version="0.1.0",
     )
     api.state.simplellm = api_state
+    api.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_origins if cors_origins is not None else _cors_origins_from_env(),
+        allow_credentials=False,
+        allow_methods=["GET", "POST"],
+        allow_headers=["*"],
+    )
 
     @api.get("/health", response_model=HealthResponse)
     def health() -> HealthResponse:
