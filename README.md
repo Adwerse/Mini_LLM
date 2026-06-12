@@ -1,45 +1,69 @@
-# Mini LLM: 3-Layer Educational Transformer Demo
+# 🧠 Mini LLM
 
-Mini LLM is an end-to-end educational language-model project: a small
-LLaMA-inspired Transformer written in PyTorch, wrapped in a FastAPI backend, and
-served through a polished React frontend.
+Mini LLM is an educational full-stack project built around a small
+decoder-only Transformer implemented in PyTorch.
 
-This is not a wrapper around OpenAI, LangChain, or a hosted model. The model
-architecture, inference path, checkpoint loading, API layer, and demo UI are all
-implemented directly in this repository.
+The project started as a notebook for learning how language models work, then
+was refactored into a cleaner engineering structure with an importable LLM
+engine, a FastAPI backend, a React frontend, tests, and Docker Compose support.
 
-## Why This Project Stands Out
+It is not a production LLM and does not try to claim production-level output
+quality. The purpose is to demonstrate how the main pieces of a language-model
+application fit together.
 
-- Built a decoder-only Transformer from scratch in PyTorch.
-- Refactored a notebook learning project into an importable Python package.
-- Added checkpoint compatibility for the original trained `.pt` weights.
-- Exposed inference through a clean FastAPI service.
-- Built a React + Vite frontend for interactive generation.
-- Added Docker Compose for a reproducible full-stack local demo.
-- Covered core model, generation, checkpoint, and API behavior with tests.
+---
 
-## 3-Layer Architecture
+## Why This Exists
+
+Most LLM tutorials stop at a notebook. That is useful for learning, but it does
+not show how the model would be packaged, served, tested, or connected to a user
+interface.
+
+This project takes the next step:
+
+```text
+Notebook experiment
+  -> importable PyTorch package
+  -> inference service
+  -> HTTP API
+  -> browser UI
+  -> Dockerized local demo
+```
+
+The goal is to show both model understanding and software engineering around
+the model.
+
+---
+
+## 3-Layer Architecture 🧱
 
 ```text
 React Frontend
-  -> FastAPI Backend
-    -> PyTorch LLM Engine
+    |
+    v
+FastAPI Backend
+    |
+    v
+PyTorch LLM Engine
 ```
 
-| Layer | Responsibility | Main Files |
+| Layer | Responsibility | Key Files |
 | --- | --- | --- |
-| Frontend | Prompt UI, generation controls, readable output, error states | `frontend/src/App.jsx`, `frontend/src/api.js` |
-| Backend API | HTTP validation, model metadata, error handling, inference calls | `src/simplellm/api/main.py`, `src/simplellm/api/schemas.py` |
-| LLM Engine | Model architecture, tokenizer, generation, checkpoint loading | `src/simplellm/model.py`, `src/simplellm/inference.py`, `src/simplellm/generation.py` |
+| **Frontend** | Prompt form, generation controls, loading/error states, output display | `frontend/src/App.jsx`, `frontend/src/api.js` |
+| **Backend API** | HTTP routes, request validation, model metadata, error handling | `src/simplellm/api/main.py`, `src/simplellm/api/schemas.py` |
+| **LLM Engine** | Model architecture, tokenizer, generation, checkpoint loading | `src/simplellm/model.py`, `src/simplellm/inference.py`, `src/simplellm/generation.py` |
 
-The layers are intentionally separated. The frontend does not know PyTorch, the
-backend does not duplicate generation logic, and the model engine can be tested
-or reused without HTTP or browser code.
+The layers are deliberately separated:
 
-## The Model
+- the frontend never imports model code;
+- the backend does not duplicate generation logic;
+- the LLM engine can be tested independently from HTTP and UI code.
 
-The core model is a compact LLaMA-style decoder-only Transformer designed for
-learning and demonstration.
+---
+
+## Model Overview 🧠
+
+The model is a compact LLaMA-inspired decoder-only Transformer.
 
 Default configuration:
 
@@ -52,41 +76,111 @@ context:     256 tokens
 dropout:     0.1
 ```
 
-Architecture details:
+Architecture:
 
 | Component | Implementation |
 | --- | --- |
 | Tokenizer | GPT-2 tokenizer from Hugging Face |
-| Attention | Multi-head causal self-attention using `scaled_dot_product_attention` |
-| Positional encoding | RoPE, rotary position embeddings |
-| Feed-forward block | SwiGLU |
+| Attention | Multi-head causal self-attention using PyTorch `scaled_dot_product_attention` |
+| Position encoding | RoPE, rotary position embeddings |
+| Feed-forward network | SwiGLU |
 | Normalization | RMSNorm |
-| Inference optimization | KV cache for autoregressive generation |
-| Weight efficiency | Tied input embedding and output projection weights |
-| Checkpoint support | Old raw `state_dict` checkpoints and newer structured checkpoints |
+| Generation | Temperature + top-p sampling |
+| Inference optimization | KV cache |
+| Weights | Tied token embedding and output projection |
+| Checkpoints | Supports old raw `state_dict` files and newer structured checkpoints |
 
-The model is educational and intentionally small. It can generate text from a
-compatible checkpoint, but output quality depends on the training run and should
-not be presented as production-grade.
+The model can generate text when a compatible `.pt` checkpoint is available.
+Because it is small and educational, generation quality should be evaluated as
+a learning demo rather than as a production assistant.
 
-## Demo Flow
+---
+
+## Application Flow 🔁
 
 ```text
-User enters prompt
--> React sends POST /generate
--> FastAPI validates request
--> SimpleLLMInference loads tokenizer/model/checkpoint
--> PyTorch model generates tokens with KV cache
--> API returns JSON
--> Frontend displays generated text
+User writes a prompt
+    |
+    v
+React sends POST /generate
+    |
+    v
+FastAPI validates the request
+    |
+    v
+SimpleLLMInference loads tokenizer, model, and checkpoint
+    |
+    v
+PyTorch model generates tokens
+    |
+    v
+API returns JSON
+    |
+    v
+Frontend displays the result
 ```
 
-## Project Structure
+---
+
+## What It Does
+
+### LLM Engine
+
+The `simplellm` package contains the core model and inference code:
+
+- model configuration via `ModelConfig`;
+- Transformer architecture in PyTorch;
+- GPT-2 tokenizer setup;
+- text generation with KV cache;
+- checkpoint save/load helpers;
+- `SimpleLLMInference` wrapper for loading and generation.
+
+### Backend API
+
+The FastAPI backend exposes a small inference API:
+
+- `GET /health`
+- `GET /model/info`
+- `POST /generate`
+
+It handles HTTP validation and error responses, then delegates generation to the
+LLM engine.
+
+### Frontend
+
+The React frontend provides a simple ML demo interface:
+
+- prompt textarea;
+- max token control;
+- temperature control;
+- top-p control;
+- backend/model status;
+- generated output panel;
+- readable error messages.
+
+### Docker Compose 🐳
+
+Docker Compose runs the project as two services:
+
+```text
+frontend container  -> React build served by nginx
+backend container   -> FastAPI + PyTorch LLM engine
+```
+
+The architecture has three software layers, while the infrastructure currently
+uses two containers. The LLM engine runs inside the backend container as an
+imported Python package.
+
+---
+
+## Repository Structure
 
 ```text
 .
 |-- archive/
 |   `-- SimpleLLM_V_032_PyTorch.ipynb
+|-- checkpoints/
+|   `-- .gitkeep
 |-- frontend/
 |   |-- Dockerfile
 |   |-- index.html
@@ -122,6 +216,8 @@ User enters prompt
 `-- README.md
 ```
 
+---
+
 ## Local Setup
 
 Install Python dependencies:
@@ -137,34 +233,42 @@ cd frontend
 npm install
 ```
 
-## Run Backend And Frontend Locally
+---
 
-Start the API:
+## Run Locally
+
+Start the backend:
 
 ```bash
 python scripts/serve.py --checkpoint SimpleLLM_V032_Final.pt --device cpu
 ```
 
-API URL:
+Backend:
 
 ```text
 http://127.0.0.1:8000
 ```
 
-Start the frontend in a second terminal:
+API docs:
+
+```text
+http://127.0.0.1:8000/docs
+```
+
+Start the frontend in another terminal:
 
 ```bash
 cd frontend
 npm run dev
 ```
 
-Frontend URL:
+Frontend:
 
 ```text
 http://127.0.0.1:5173
 ```
 
-If the backend runs somewhere else:
+If the backend URL is different:
 
 ```bash
 VITE_API_BASE_URL=http://127.0.0.1:8000 npm run dev
@@ -177,10 +281,11 @@ $env:VITE_API_BASE_URL="http://127.0.0.1:8000"
 npm run dev
 ```
 
-## Run With Docker Compose
+---
 
-Model weights are intentionally not committed to git. Put a compatible
-checkpoint here:
+## Run With Docker Compose 🐳
+
+Model checkpoints are not committed to git. Put a compatible checkpoint here:
 
 ```text
 checkpoints/SimpleLLM_V032_Final.pt
@@ -200,8 +305,10 @@ Backend:  http://127.0.0.1:8000
 Docs:     http://127.0.0.1:8000/docs
 ```
 
-Without a checkpoint, `/health` will still work, but `/generate` will return a
-clear error because the model cannot load weights.
+Without a checkpoint, `/health` can still respond, but `/generate` will return
+an error because no model weights are available.
+
+---
 
 ## API
 
@@ -251,6 +358,8 @@ Response:
 }
 ```
 
+---
+
 ## CLI Generation
 
 ```bash
@@ -261,49 +370,93 @@ python scripts/generate.py \
   --device cpu
 ```
 
-## Tests
+---
 
-Run the Python test suite:
+## Tests ✅
+
+Run Python tests:
 
 ```bash
 python -m pytest
 ```
 
-Build the frontend:
+Build frontend:
 
 ```bash
 cd frontend
 npm run build
 ```
 
-Current test coverage includes:
+Current tests cover:
 
-- model forward-pass shape
-- KV-cache generation smoke test
-- old and structured checkpoint loading
-- FastAPI route validation and responses
+- model forward-pass shape;
+- generation smoke test;
+- checkpoint loading for raw and structured formats;
+- FastAPI route behavior and validation.
 
-## Engineering Notes
+---
 
-- The model package preserves old notebook checkpoint key names.
-- `.pt` files are ignored so large model weights do not enter git history.
-- FastAPI owns HTTP concerns only; generation remains inside the LLM engine.
-- The frontend uses plain React state and no heavy UI framework.
-- Docker Compose provides a reproducible full-stack demo path.
+## Engineering Decisions
+
+**Keep the model engine importable.**  
+The model is not trapped inside an API route or notebook cell. It can be loaded,
+tested, and reused as a Python package.
+
+**Preserve checkpoint compatibility.**  
+The refactor keeps the original checkpoint key structure so old `.pt` files can
+still load.
+
+**Keep API routes thin.**  
+FastAPI handles HTTP concerns. The backend calls `SimpleLLMInference` instead
+of reimplementing generation logic.
+
+**Keep the frontend simple.**  
+React state is enough for this demo. No Redux or heavy UI framework is needed.
+
+**Keep model weights out of git.**  
+Large `.pt` files are ignored. Docker Compose mounts checkpoints from the local
+`checkpoints/` directory.
+
+---
+
+## Current Status
+
+Implemented:
+
+- importable PyTorch LLM package;
+- GPT-2 tokenizer integration;
+- generation with temperature, top-p, and KV cache;
+- checkpoint save/load utilities;
+- FastAPI backend;
+- React + Vite frontend;
+- Docker Compose setup;
+- Python tests for core behavior.
+
+Not implemented yet:
+
+- full training CLI;
+- experiment tracking;
+- hosted checkpoint download;
+- production authentication;
+- GPU Docker profile.
+
+---
 
 ## Limitations
 
-- This is an educational Mini LLM, not a production model.
-- Output quality depends on the available checkpoint and training duration.
-- CPU inference is supported but can be slow for longer generations.
-- Training is still represented by the archived notebook, not a full training CLI.
-- The frontend is a local demo UI without authentication or deployment hardening.
+- This is an educational model, not a production LLM.
+- Output quality depends on the training run and checkpoint.
+- CPU inference can be slow for longer generations.
+- The archived notebook still contains the original training workflow.
+- The frontend is intended for local demo use.
+
+---
 
 ## Future Improvements
 
-- Convert notebook training into `scripts/train.py`.
-- Add structured experiment configs under `configs/`.
-- Save training metrics and sample generations per checkpoint.
-- Add a small CPU-friendly demo checkpoint or documented download link.
+- Move training from notebook into `scripts/train.py`.
+- Add configuration files for model/training presets.
+- Save training metrics and sample outputs with checkpoints.
+- Add a small demo checkpoint or documented checkpoint download.
 - Add CI for Python tests and frontend build.
-- Add optional GPU Docker profile for CUDA machines.
+- Add optional CUDA Docker profile for GPU machines.
