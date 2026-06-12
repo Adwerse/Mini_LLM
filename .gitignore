@@ -41,4 +41,5 @@ frontend/.vite/
 *.pt
 *.log
 logs/
-checkpoints/
+checkpoints/*
+!checkpoints/.gitkeep
